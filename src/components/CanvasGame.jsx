@@ -28,7 +28,7 @@ export default function CanvasGame() {
             createTarget(500, height - 200, 25),
         ];
 
-        Matter.World.add(world, [ball, ground, ...targets]);
+        Matter.Composite.add(world, [ball, ground, ...targets]);
 
         // Collision detection
         Matter.Events.on(engine, "collisionStart", (event) => {
@@ -44,7 +44,8 @@ export default function CanvasGame() {
 
                     // Optionally: remove target after hit
                     setTimeout(() => {
-                        Matter.World.remove(world, target);
+                        console.log("Removing target");
+                        Matter.Composite.remove(world, target);
                     }, 300);
                 }
             });
