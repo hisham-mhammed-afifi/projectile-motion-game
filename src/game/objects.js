@@ -13,3 +13,11 @@ export function createGround(width, height) {
         label: "ground",
     });
 }
+
+export function createTarget(x, y, radius = 25) {
+    return Matter.Bodies.circle(x, y, radius, {
+        isStatic: true,
+        label: "target",
+        render: { fillStyle: "blue" }, // not used in canvas, but can help
+    });
+}
