@@ -2,12 +2,14 @@ import { useEffect, useRef, useState } from "react";
 import Matter from "matter-js";
 import { createEngine } from "../game/engine";
 import { createBall, createGround, createTarget } from "../game/objects";
+import { predictProjectilePath } from "../game/physics";
 
 export default function CanvasGame() {
     const canvasRef = useRef(null);
     const [angle, setAngle] = useState(45);
     const [power, setPower] = useState(15);
     const [score, setScore] = useState(0);
+    const [ballLaunched, setBallLaunched] = useState(false);
 
     useEffect(() => {
         const { engine, world } = createEngine();
@@ -28,6 +30,13 @@ export default function CanvasGame() {
             createTarget(500, height - 200, 25),
         ];
 
+        const rad = (angle * Math.PI) / 180;
+
+        const velocity = {
+            x: power * Math.cos(rad),
+            y: -power * Math.sin(rad),
+        };
+
         Matter.Composite.add(world, [ball, ground, ...targets]);
 
         // Collision detection
@@ -35,14 +44,10 @@ export default function CanvasGame() {
             event.pairs.forEach(({ bodyA, bodyB }) => {
                 const labels = [bodyA.label, bodyB.label];
                 if (labels.includes("ball") && labels.includes("target")) {
-                    // Update score
                     setScore((prev) => prev + 10);
 
-                    // Flash effect: temporarily mark target
                     const target = bodyA.label === "target" ? bodyA : bodyB;
                     target.hit = true;
-
-                    // Optionally: remove target after hit
                     setTimeout(() => {
                         console.log("Removing target");
                         Matter.Composite.remove(world, target);
@@ -53,13 +58,11 @@ export default function CanvasGame() {
 
         // Launch ball
         const handleKey = (e) => {
-            if (e.code === "Space") {
-                const rad = (angle * Math.PI) / 180;
-                const velocity = {
-                    x: power * Math.cos(rad),
-                    y: -power * Math.sin(rad),
-                };
+            if (e.code === "Space" && !ballLaunched) {
+
+
                 Matter.Body.setVelocity(ball, velocity);
+                setBallLaunched(true);
             }
         };
         window.addEventListener("keydown", handleKey);
@@ -67,14 +70,7 @@ export default function CanvasGame() {
         // Game loop
         const loop = () => {
             Matter.Engine.update(engine, 1000 / 60);
-
             ctx.clearRect(0, 0, width, height);
-
-            // Draw ball
-            ctx.beginPath();
-            ctx.arc(ball.position.x, ball.position.y, ball.circleRadius, 0, 2 * Math.PI);
-            ctx.fillStyle = "red";
-            ctx.fill();
 
             // Draw ground
             ctx.fillStyle = "green";
@@ -84,10 +80,30 @@ export default function CanvasGame() {
             targets.forEach((t) => {
                 ctx.beginPath();
                 ctx.arc(t.position.x, t.position.y, t.circleRadius, 0, 2 * Math.PI);
-                ctx.fillStyle = t.hit ? "yellow" : "blue"; // flash when hit
+                ctx.fillStyle = t.hit ? "yellow" : "blue";
                 ctx.fill();
-                if (t.hit) t.hit = false; // reset flash state
+                if (t.hit) t.hit = false;
             });
+
+            // Draw ball
+            ctx.beginPath();
+            ctx.arc(ball.position.x, ball.position.y, ball.circleRadius, 0, 2 * Math.PI);
+            ctx.fillStyle = "red";
+            ctx.fill();
+
+            // Draw predicted trajectory BEFORE launch
+            if (!ballLaunched) {
+                const trajPoints = predictProjectilePath(engine, ball, velocity, {
+                    steps: 300,
+                    radius: 5,
+                });
+                ctx.fillStyle = "rgba(255, 255, 255, 0.2)";
+                trajPoints.forEach((p) => {
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, 3, 0, 2 * Math.PI);
+                    ctx.fill();
+                });
+            }
 
             requestAnimationFrame(loop);
         };
@@ -97,6 +113,8 @@ export default function CanvasGame() {
             window.removeEventListener("keydown", handleKey);
         };
     }, [angle, power]);
+
+
 
     return (
         <div>
@@ -114,7 +132,10 @@ export default function CanvasGame() {
                         min="10"
                         max="80"
                         value={angle}
-                        onChange={(e) => setAngle(Number(e.target.value))}
+                        onChange={(e) => {
+                            setAngle(Number(e.target.value));
+                            setBallLaunched(false); // reset prediction
+                        }}
                     />
                 </label>
                 <br />
@@ -125,7 +146,10 @@ export default function CanvasGame() {
                         min="5"
                         max="30"
                         value={power}
-                        onChange={(e) => setPower(Number(e.target.value))}
+                        onChange={(e) => {
+                            setPower(Number(e.target.value));
+                            setBallLaunched(false);
+                        }}
                     />
                 </label>
                 <p>Press <b>Spacebar</b> to launch!</p>
